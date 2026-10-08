@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ホットスナック管理</title>
+<title>FF管理</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -66,11 +66,15 @@ td.yel .i,td.red .i{color:inherit}
 .pk .ok{grid-row:span 2;height:auto;background:var(--ac);border-color:var(--ac);color:#fff;font-size:1.1rem}
 .pk .z{grid-column:span 3}
 .toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:8px;z-index:60;display:none;max-width:90vw}
-#rep{position:fixed;left:-10000px;top:0;width:794px;background:#fff;color:#000;padding:30px;box-sizing:border-box;font-family:"Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif}
-#rep table{border-collapse:collapse;width:100%;margin-bottom:14px}
-#rep td,#rep th{border:1px solid #888;padding:5px 7px;font-size:13px;text-align:left;vertical-align:top;background:#fff;position:static}
-#rep th{background:#eee;color:#000;font-size:13px}
+#rep{position:fixed;left:-10000px;top:0;width:794px;height:1123px;background:#fff;color:#212529;padding:40px;box-sizing:border-box;overflow:hidden;font-family:"Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif}
+#rep table{border-collapse:collapse;width:100%;font-size:16px}
+#rep th{background:#343a40;color:#fff;padding:9px 10px;text-align:left;font-size:15px}
+#rep td{padding:8px 10px;border-bottom:1px solid #dee2e6;background:#fff}
+#rep tr:nth-child(even) td{background:#f8f9fa}
 #rep .r{text-align:right}
+#rep td.n{font-weight:700}
+#rep .st td{background:#fff3bf;font-weight:700}
+#rep .tt td{background:#343a40;color:#fff;font-weight:700;font-size:17px}
 </style>
 </head>
 <body>
@@ -78,6 +82,7 @@ td.yel .i,td.red .i{color:inherit}
   <div class="tabs" id="tabs"></div>
   <button class="end" id="end">■ 終了（PDF保存）</button>
   <button id="undo" disabled>↶ 元に戻す</button>
+  <button id="dir" title="PDFの保存先（FF管理フォルダ）">📁 保存先を選択</button>
   <div class="ctl">
     <input id="newName" placeholder="新しい商品名...">
     <button class="p" id="add">+ 商品追加</button>
@@ -97,8 +102,8 @@ td.yel .i,td.red .i{color:inherit}
 const KEY = 'fryTracker.v3', UKEY = 'fryTracker.undo', OLD = 'fryTracker.v2';
 const TABS = [
   { k: 'fry', name: '揚げ物', icon: '🍗', verb: '揚げ', shelf: 120, items: ['から揚げ', 'アメリカンドッグ', 'フライドポテト', 'チキンナゲット', 'コロッケ'] },
-  { k: 'grill', name: '焼き物', icon: '🔥', verb: '焼き', shelf: 120, items: ['焼き鳥', 'ソーセージ', '手羽先', '焼きとうもろこし', '焼き芋'] },
-  { k: 'bao', name: '中華まん', icon: '🥟', verb: '蒸し', shelf: 240, items: ['肉まん', 'あんまん', 'ピザまん', 'カレーまん'] }
+  { k: 'grill', name: '焼き鳥', icon: '🔥', verb: '焼き', shelf: 120, items: ['焼き鳥', 'ソーセージ', '手羽先', '焼きとうもろこし', '焼き芋'] },
+  { k: 'bao', name: '中華まん', icon: '🍚', verb: '蒸し', shelf: 240, items: ['肉まん', 'あんまん', 'ピザまん', 'カレーまん'] }
 ];
 const uid = () => Math.random().toString(36).slice(2, 9);
 const blank = n => Array.from({ length: n }, () => ({ qty: '', out: 0, fry: null, ack: false }));
@@ -275,44 +280,79 @@ function addItem() {
 }
 $('add').onclick = addItem;
 $('newName').onkeydown = e => { if (e.key === 'Enter') addItem(); };
-$('shelf').onchange = e => { const t = T(); t.shelf = Math.max(1, +e.target.value || 120); e.target.value = t.shelf; save(); };
-$('red').onchange = e => { const t = T(); t.red = Math.max(1, +e.target.value || 60); e.target.value = t.red; save(); tick(); };
+$('shelf').onchange = () => { const t = T(), el = $('shelf'); t.shelf = Math.max(1, parseInt(el.value, 10) || 120); el.value = t.shelf; save(); };
+$('red').onchange = () => { const t = T(), el = $('red'); t.red = Math.max(1, parseInt(el.value, 10) || 60); el.value = t.red; save(); tick(); };
 
 /* ---------- 終了 → PDF ---------- */
 const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
-function reportHTML(d) {
-  let h = `<h1 style="font-size:22px;margin:0 0 14px">ホットスナック日報　${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日</h1>`, GQ = 0, GO = 0;
+const TC = { fry: '#e8590c', grill: '#c92a2a', bao: '#1c7ed6' };
+function buildPages(d) {
+  const pg = [], sum = []; let GQ = 0, GO = 0;
   TABS.forEach(tab => {
-    const t = S.t[tab.k]; let tq = 0, to = 0, rows = '';
+    const t = S.t[tab.k], lines = []; let tq = 0, to = 0;
     t.rows.forEach(r => {
       const all = [...r.hist, ...r.b.filter(b => b.fry).map(b => ({ fry: b.fry, qty: +b.qty || 0, out: b.out || 0 }))].sort((a, b) => a.fry - b.fry);
       const q = all.reduce((a, x) => a + x.qty, 0), o = all.reduce((a, x) => a + x.out, 0) + (r.disc || 0);
-      if (!all.length && !o) return; tq += q; to += o;
-      rows += `<tr><td>${esc(r.name || '(名称未設定)')}</td><td>${all.map(x => `${hm(x.fry)}　${x.qty}個（廃棄 ${x.out}）`).join('<br>')}</td><td class="r">${q}</td><td class="r">${o}</td></tr>`;
+      if (!all.length && !o) return; tq += q; to += o; const nm = esc(r.name || '(名称未設定)');
+      all.forEach((x, i) => lines.push(`<tr><td class="n">${i ? '' : nm}</td><td>${hm(x.fry)}</td><td class="r">${x.qty}</td><td class="r">${x.out}</td></tr>`));
+      lines.push(`<tr class="st"><td colspan="2">${nm}　合計</td><td class="r">${q}</td><td class="r">${o}</td></tr>`);
     });
-    GQ += tq; GO += to;
-    h += `<h2 style="font-size:16px;margin:10px 0 6px">${tab.icon} ${tab.name}　（${tab.verb}合計 ${tq} 個 ／ 廃棄合計 ${to} 個）</h2><table><tr><th style="width:22%">商品</th><th>${tab.verb}時刻・数量（廃棄）</th><th style="width:11%">${tab.verb}合計</th><th style="width:11%">廃棄合計</th></tr>${rows || '<tr><td colspan="4">記録なし</td></tr>'}</table>`;
+    GQ += tq; GO += to; sum.push({ tab, tq, to });
+    const per = 20, chunks = Math.max(1, Math.ceil(lines.length / per));
+    for (let c = 0; c < chunks; c++) {
+      const rows = lines.slice(c * per, (c + 1) * per).join('') || '<tr><td colspan="4">記録なし</td></tr>';
+      const tot = c === chunks - 1 ? `<tr class="tt"><td colspan="2">${tab.name}　総合計</td><td class="r">${tq}</td><td class="r">${to}</td></tr>` : '';
+      pg.push({ sub: `${tab.icon} ${tab.name}${chunks > 1 ? `（${c + 1}/${chunks}）` : ''}`, color: TC[tab.k],
+        body: `<table><tr><th style="width:36%">商品</th><th>${tab.verb}時刻</th><th class="r" style="text-align:right">数量</th><th style="text-align:right">廃棄</th></tr>${rows}${tot}</table>` });
+    }
   });
-  return h + `<h2 style="font-size:17px;margin-top:14px">本日の総合計：数量 ${GQ} 個 ／ 廃棄 ${GO} 個</h2>`;
+  const rate = (o, q) => q ? (o / q * 100).toFixed(1) + '%' : '-';
+  pg.unshift({ sub: '本日のまとめ', color: '#343a40', body:
+    `<table><tr><th>区分</th><th style="text-align:right">数量合計</th><th style="text-align:right">廃棄合計</th><th style="text-align:right">廃棄率</th></tr>` +
+    sum.map(x => `<tr><td class="n">${x.tab.icon} ${x.tab.name}</td><td class="r">${x.tq}</td><td class="r">${x.to}</td><td class="r">${rate(x.to, x.tq)}</td></tr>`).join('') +
+    `<tr class="tt"><td>総合計</td><td class="r">${GQ}</td><td class="r">${GO}</td><td class="r">${rate(GO, GQ)}</td></tr></table>` });
+  return pg.map((p, i) => `<div style="height:1043px;position:relative"><div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:4px solid ${p.color};padding-bottom:10px;margin-bottom:16px"><div style="font-size:26px;font-weight:700">ホットスナック日報</div><div style="font-size:18px">${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日</div></div><div style="font-size:21px;font-weight:700;color:${p.color};margin-bottom:12px">${p.sub}</div>${p.body}<div style="position:absolute;bottom:0;right:0;font-size:12px;color:#868e96">${i + 1} / ${pg.length}</div></div>`);
 }
-let busy = false;
+
+/* 保存先フォルダ（FF管理）: 対応ブラウザ（PC版 Chrome / Edge）のみ。非対応は通常ダウンロード */
+let dirH = null, busy = false;
+const idb = () => new Promise((res, rej) => { const q = indexedDB.open('ffk', 1); q.onupgradeneeded = () => q.result.createObjectStore('h'); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+const hSet = async v => { try { const d = await idb(); await new Promise(r => { const t = d.transaction('h', 'readwrite'); t.objectStore('h').put(v, 'dir'); t.oncomplete = r; t.onerror = r; }); } catch (e) {} };
+const hGet = async () => { try { const d = await idb(); return await new Promise(r => { const q = d.transaction('h').objectStore('h').get('dir'); q.onsuccess = () => r(q.result); q.onerror = () => r(null); }); } catch (e) { return null; } };
+const updDir = () => { $('dir').textContent = dirH ? '📁 ' + dirH.name : '📁 保存先を選択'; };
+hGet().then(h => { dirH = h || null; updDir(); });
+$('dir').onclick = async () => {
+  if (!window.showDirectoryPicker) { toast('このブラウザではフォルダ指定ができません。PDFはダウンロードフォルダに保存されます'); return; }
+  try {
+    let h = await window.showDirectoryPicker({ mode: 'readwrite' });
+    if (h.name !== 'FF管理') h = await h.getDirectoryHandle('FF管理', { create: true });
+    dirH = h; await hSet(h); updDir(); toast('保存先：' + h.name);
+  } catch (e) {}
+};
+
 async function endDay() {
-  if (busy) return; busy = true; closePad(true); toast('PDFを作成中…');
+  if (busy) return; busy = true; closePad(true);
+  let dirOK = false;
+  if (dirH) { try { dirOK = (await dirH.requestPermission({ mode: 'readwrite' })) === 'granted'; } catch (e) {} }
+  toast('PDFを作成中…');
   try {
     if (!window.html2canvas || !window.jspdf) throw new Error('lib');
-    const d = new Date(), p = n => String(n).padStart(2, '0'), name = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.pdf`;
-    const rep = $('rep'); rep.innerHTML = reportHTML(d);
-    const cv = await html2canvas(rep, { scale: 2, backgroundColor: '#fff' });
-    const doc = new window.jspdf.jsPDF('p', 'mm', 'a4'), W = 210, H = 297, pagePx = Math.floor(cv.width * H / W);
-    for (let y = 0, pg = 0; y < cv.height; y += pagePx, pg++) {
-      const part = document.createElement('canvas'); part.width = cv.width; part.height = Math.min(pagePx, cv.height - y);
-      part.getContext('2d').drawImage(cv, 0, y, cv.width, part.height, 0, 0, cv.width, part.height);
-      if (pg) doc.addPage(); doc.addImage(part.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, W, part.height * W / cv.width);
+    const d = new Date(), p = n => String(n).padStart(2, '0'), base = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    const pages = buildPages(d), doc = new window.jspdf.jsPDF('p', 'mm', 'a4'), rep = $('rep');
+    for (let i = 0; i < pages.length; i++) {
+      rep.innerHTML = pages[i]; const cv = await html2canvas(rep, { scale: 2, backgroundColor: '#fff' });
+      if (i) doc.addPage(); doc.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
     }
-    doc.save(name);
-    undoData = JSON.stringify(S); try { localStorage.setItem(UKEY, undoData); } catch (e) {}   // 直前の1回分だけ保持
+    let msg;
+    if (dirOK) {
+      let nm = base + '.pdf', k = 1;
+      for (;;) { try { await dirH.getFileHandle(nm); k++; nm = `${base}_${k}.pdf`; } catch (e) { break; } }   // 同じ日に複数回でも上書きしない
+      const w = await (await dirH.getFileHandle(nm, { create: true })).createWritable(); await w.write(doc.output('blob')); await w.close();
+      msg = `${dirH.name}フォルダに保存しました：${nm}`;
+    } else { doc.save(base + '.pdf'); msg = `ダウンロードに保存しました：${base}.pdf（FF管理フォルダへ移動してください）`; }
+    undoData = JSON.stringify(S); try { localStorage.setItem(UKEY, undoData); } catch (e) {}
     TABS.forEach(tb => { const t = S.t[tb.k]; t.rows.forEach(r => { r.b = blank(t.n); r.hist = []; r.disc = 0; }); });
-    save(); render(); upUndo(); toast('保存しました：' + name);
+    save(); render(); upUndo(); toast(msg);
   } catch (e) { toast('PDF作成に失敗しました（データは消していません）'); }
   busy = false;
 }
