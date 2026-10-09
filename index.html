@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>FF管理</title>
+<title>ホットスナック管理</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -45,6 +45,7 @@ td.nm .sh input{width:42px;text-align:center;padding:3px}
 td.nm .dsc{margin-top:6px;font-size:.75rem;color:var(--mu);line-height:1.4}
 td.nm .del{margin-top:5px;font-size:.68rem;color:var(--mu);padding:1px 6px}
 td.b.ok{background:var(--ok)}
+td.b.pl{background:var(--card)}
 td.b.yel{background:var(--yl);color:var(--yl-tx)}
 td.b.red{background:var(--rd);color:#fff;animation:bl 1s infinite}
 @keyframes bl{50%{filter:brightness(1.35)}}
@@ -64,17 +65,26 @@ td.yel .i,td.red .i{color:inherit}
 .pk{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-width:460px;margin:0 auto}
 .pk button{height:46px;font-size:1.4rem;font-weight:700}
 .pk .ok{grid-row:span 2;height:auto;background:var(--ac);border-color:var(--ac);color:#fff;font-size:1.1rem}
-.pk .z{grid-column:span 3}
+.pk .z{grid-column:span 2}
 .toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:8px;z-index:60;display:none;max-width:90vw}
 #rep{position:fixed;left:-10000px;top:0;width:794px;height:1123px;background:#fff;color:#212529;padding:40px;box-sizing:border-box;overflow:hidden;font-family:"Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif}
 #rep table{border-collapse:collapse;width:100%;font-size:16px}
 #rep th{background:#343a40;color:#fff;padding:9px 10px;text-align:left;font-size:15px}
+#rep th.dh{background:#c92a2a;text-align:right}
 #rep td{padding:8px 10px;border-bottom:1px solid #dee2e6;background:#fff}
 #rep tr:nth-child(even) td{background:#f8f9fa}
 #rep .r{text-align:right}
 #rep td.n{font-weight:700}
-#rep .st td{background:#fff3bf;font-weight:700}
-#rep .tt td{background:#343a40;color:#fff;font-weight:700;font-size:17px}
+#rep .dc{color:#c92a2a;font-weight:700;font-size:24px}
+#rep tr td.dc2{color:#c92a2a;font-weight:700;font-size:19px;text-align:right;background:#fff5f5}
+#rep tr.st td{background:#fff3bf;font-weight:700}
+#rep tr.tt td{background:#343a40;color:#fff;font-weight:700;font-size:17px}
+#rep .tt .dc{color:#fff}
+#rep .card{border:2px solid #ced4da;border-radius:8px;margin-bottom:14px;overflow:hidden}
+#rep .ch{display:flex;justify-content:space-between;align-items:center;background:#f1f3f5;padding:8px 12px;border-bottom:2px solid #ced4da}
+#rep .cn{font-size:22px;font-weight:700}
+#rep .cs{font-size:15px}
+#rep .cs b{color:#c92a2a;font-size:20px}
 </style>
 </head>
 <body>
@@ -86,9 +96,10 @@ td.yel .i,td.red .i{color:inherit}
   <div class="ctl">
     <input id="newName" placeholder="新しい商品名...">
     <button class="p" id="add">+ 商品追加</button>
-    <label>新商品の期限 <input class="s num" id="shelf" data-t="新商品の期限（分）" readonly inputmode="none"> 分</label>
-    <label>期限後 赤まで <input class="s num" id="red" data-t="期限後、赤になるまで（分）" readonly inputmode="none"> 分</label>
+    <label id="lbS">新商品の期限 <input class="s num" id="shelf" data-t="新商品の期限（時間）" data-dec="1" readonly inputmode="none"> 時間</label>
+    <label id="lbR">期限後 赤まで <input class="s num" id="red" data-t="期限後、赤になるまで（時間）" data-dec="1" readonly inputmode="none"> 時間</label>
     <button id="mute" title="警告音">🔔</button>
+    <span id="sv" style="font-size:.72rem;color:var(--mu)">💾 自動保存オン</span>
   </div>
 </div>
 <div class="tw" id="tw"><table id="tbl"><thead id="head"></thead><tbody id="body"></tbody></table></div>
@@ -99,34 +110,46 @@ td.yel .i,td.red .i{color:inherit}
 <div class="toast" id="toast"></div>
 <div id="rep"></div>
 <script>
-const KEY = 'fryTracker.v3', UKEY = 'fryTracker.undo', OLD = 'fryTracker.v2';
+const KEY = 'fryTracker.v3', BAK = 'fryTracker.bak', UKEY = 'fryTracker.undo', OLD = 'fryTracker.v2';
 const TABS = [
   { k: 'fry', name: '揚げ物', icon: '🍗', verb: '揚げ', shelf: 120, items: ['から揚げ', 'アメリカンドッグ', 'フライドポテト', 'チキンナゲット', 'コロッケ'] },
   { k: 'grill', name: '焼き鳥', icon: '🔥', verb: '焼き', shelf: 120, items: ['焼き鳥', 'ソーセージ', '手羽先', '焼きとうもろこし', '焼き芋'] },
-  { k: 'bao', name: '中華まん', icon: '🍚', verb: '蒸し', shelf: 240, items: ['肉まん', 'あんまん', 'ピザまん', 'カレーまん'] }
+  { k: 'bao', name: '中華まん', icon: '🥟', verb: '蒸し', shelf: 240, items: ['肉まん', 'あんまん', 'ピザまん', 'カレーまん'] },
+  { k: 'oden', name: 'おでん', icon: '🍢', verb: '', shelf: 0, noMake: true, items: ['大根', 'たまご', 'こんにゃく', 'ちくわ', '厚揚げ', '牛すじ'] }
 ];
 const uid = () => Math.random().toString(36).slice(2, 9);
 const blank = n => Array.from({ length: n }, () => ({ qty: '', out: 0, fry: null, ack: false }));
 const mk = t => ({ n: 7, shelf: t.shelf, red: 60, rows: t.items.map(x => ({ id: uid(), name: x, shelf: t.shelf, disc: 0, hist: [], b: blank(7) })) });
 let S = { active: 'fry', t: {} };
 TABS.forEach(t => S.t[t.k] = mk(t));
+const readLS = k => { try { const d = JSON.parse(localStorage.getItem(k)); return d && d.t ? d : null; } catch (e) { return null; } };
 try {
-  const d = JSON.parse(localStorage.getItem(KEY));
-  if (d && d.t) { S.active = d.active || 'fry'; TABS.forEach(t => { if (d.t[t.k]) S.t[t.k] = d.t[t.k]; }); }
+  const d = readLS(KEY) || readLS(BAK);   // 本体が壊れていてもバックアップから復元
+  if (d) { S.active = d.active || 'fry'; S.savedAt = d.savedAt || 0; TABS.forEach(t => { if (d.t[t.k]) S.t[t.k] = d.t[t.k]; }); }
   else { const o = JSON.parse(localStorage.getItem(OLD)); if (o && o.rows) S.t.fry = o; }
 } catch (e) {}
 let undoData = null; try { undoData = localStorage.getItem(UKEY); } catch (e) {}
 const MAP = { 'Gà rán': 'から揚げ', 'Xúc xích': 'アメリカンドッグ', 'Khoai tây chiên': 'フライドポテト', 'Cá viên chiên': 'チキンナゲット', 'Chả giò': 'コロッケ', 'Xúc xích nướng': '焼き鳥', 'Thịt xiên nướng': 'ソーセージ', 'Cánh gà nướng': '手羽先', 'Bắp nướng': '焼きとうもろこし', 'Khoai lang nướng': '焼き芋', 'Bánh bao thịt': '肉まん', 'Bánh bao trứng cút': 'あんまん', 'Bánh bao xá xíu': 'ピザまん', 'Bánh bao đậu xanh': 'カレーまん' };
 function normalize() {   // 古いデータの補完
   if (!TABS.some(t => t.k === S.active)) S.active = 'fry';
-  TABS.forEach(tb => { const t = S.t[tb.k]; t.red = t.red || 60;
+  TABS.forEach(tb => { if (!S.t[tb.k]) S.t[tb.k] = mk(tb); const t = S.t[tb.k]; t.red = t.red || 60;
     t.n = Math.max(7, t.n || 0, ...t.rows.map(r => r.b.length));
-    t.rows.forEach(r => { if (MAP[r.name]) r.name = MAP[r.name]; r.hist = r.hist || []; while (r.b.length < t.n) r.b.push(...blank(1)); }); });
+    t.rows.forEach(r => { if (MAP[r.name]) r.name = MAP[r.name]; r.hist = []; r.disc = 0; while (r.b.length < t.n) r.b.push(...blank(1)); }); });
 }
 normalize();
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+const sdb = () => new Promise((res, rej) => { const q = indexedDB.open('ffk-state', 1); q.onupgradeneeded = () => q.result.createObjectStore('s'); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+async function idbPut(str) { try { const d = await sdb(); d.transaction('s', 'readwrite').objectStore('s').put(str, 'state'); } catch (e) {} }
+const idbGetState = async () => { try { const d = await sdb(); return await new Promise(r => { const q = d.transaction('s').objectStore('s').get('state'); q.onsuccess = () => r(q.result); q.onerror = () => r(null); }); } catch (e) { return null; } };
+let lastBak = 0;
+function save() {   // localStorage + バックアップ + IndexedDB の3重保存
+  S.savedAt = Date.now(); const str = JSON.stringify(S);
+  try { const prev = localStorage.getItem(KEY); if (prev && S.savedAt - lastBak > 60000) { localStorage.setItem(BAK, prev); lastBak = S.savedAt; } localStorage.setItem(KEY, str); } catch (e) {}
+  idbPut(str);
+  const e = $('sv'); if (e) e.textContent = '💾 自動保存 ' + new Date().toLocaleTimeString('ja-JP');
+}
 const hm = ms => new Date(ms).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false });
 const $ = id => document.getElementById(id);
+const fmtH = m => String(+(m / 60).toFixed(2));
 const cur = () => TABS.find(t => t.k === S.active), T = () => S.t[S.active];
 const reset = b => { b.qty = ''; b.out = 0; b.fry = null; b.ack = false; };
 const archive = (r, b) => { if (b.fry) r.hist.push({ fry: b.fry, qty: +b.qty || 0, out: b.out || 0 }); };
@@ -134,9 +157,16 @@ const NAMEW = 112, ADDW = 44;
 function toast(m) { const e = $('toast'); e.textContent = m; e.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.display = 'none', 3500); }
 
 /* ---------- 音 ---------- */
-let ac = null, muted = false, lastBeep = 0;
+let ac = null, muted = false, lastBeep = 0, redN = 0, wl = null;
 const unlock = () => { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); ac.resume(); } catch (e) {} };
 document.addEventListener('pointerdown', unlock);
+async function keepAwake() { try { if (navigator.wakeLock && !document.hidden) wl = await navigator.wakeLock.request('screen'); } catch (e) {} }   // 画面スリープ防止（警報のため）
+document.addEventListener('pointerdown', keepAwake, { once: true });
+function alarmBeat() {   // 赤い（要廃棄入力）ミスがある間、鳴り続ける
+  if (!redN) return;
+  if (!ac || ac.state !== 'running') { toast('🔔 画面をタッチすると警報音が鳴ります'); return; }
+  beep();
+}
 function beep() {
   if (muted || !ac) return;
   try { for (let i = 0; i < 3; i++) { const o = ac.createOscillator(), g = ac.createGain(), t0 = ac.currentTime + i * 0.35;
@@ -147,13 +177,14 @@ $('mute').onclick = () => { muted = !muted; $('mute').textContent = muted ? '�
 /* ---------- テンキー ---------- */
 let P = null;
 const pk = $('pk');
-['1','2','3','⌫','4','5','6','クリア','7','8','9','確定','0'].forEach(k => {
+['1','2','3','⌫','4','5','6','クリア','7','8','9','確定','0','.'].forEach(k => {
   const b = document.createElement('button'); b.textContent = k;
   if (k === '確定') b.className = 'ok'; if (k === '0') b.className = 'z';
   b.onclick = () => {
     if (!P) return;
     if (k === '⌫') P.buf = P.buf.slice(0, -1);
     else if (k === 'クリア') P.buf = '';
+    else if (k === '.') { if (!P.inp.dataset.dec || P.buf.includes('.')) return; P.buf = (P.buf || '0') + '.'; }
     else if (k === '確定') { closePad(true, true); return; }
     else P.buf = (P.buf === '0' ? '' : P.buf) + k, P.buf = P.buf.slice(0, 4);
     $('padV').textContent = P.buf || '—';
@@ -200,38 +231,43 @@ function buildTabs() {
 
 function render() {
   const tab = cur(), t = T();
-  $('shelf').value = t.shelf; $('red').value = t.red;
+  $('shelf').value = fmtH(t.shelf); $('red').value = fmtH(t.red); $('lbS').style.display = $('lbR').style.display = tab.noMake ? 'none' : '';
   $('head').innerHTML = '<tr><th class="nm0">商品</th>' + Array.from({ length: t.n }, (_, i) => `<th class="c">${i + 1}回目</th>`).join('') + '<th class="add"><button id="addCol" title="回（列）を追加">▶</button></th></tr>';
   $('addCol').onclick = () => { t.n++; t.rows.forEach(r => r.b.push(...blank(1))); save(); render(); $('tw').scrollLeft = $('tw').scrollWidth; };
   const body = $('body'); body.innerHTML = '';
   t.rows.forEach(r => {
     const tr = document.createElement('tr'); tr.dataset.id = r.id;
-    tr.innerHTML = '<td class="nm"><input class="n"><label class="sh">期限 <input class="h num" type="text" readonly inputmode="none"> 分</label><div class="dsc"></div><button class="del">商品削除</button></td>' +
-      r.b.map((_, i) => `<td class="b" data-i="${i}"><div class="io"><label>${tab.verb}<input class="q num" readonly inputmode="none"></label><label>廃棄<input class="o num" readonly inputmode="none"></label></div><div class="i"></div></td>`).join('') + '<td class="add"></td>';
+    const nm = '<td class="nm"><input class="n">' + (tab.noMake ? '' : '<label class="sh">期限 <input class="h num" data-dec="1" readonly inputmode="none"> 時間</label>') + '<div class="dsc"></div><button class="del">商品削除</button></td>';
+    const cell = tab.noMake
+      ? '<div class="io"><label>廃棄<input class="o num" readonly inputmode="none"></label></div>'
+      : `<div class="io"><label>${tab.verb}<input class="q num" readonly inputmode="none"></label><label>廃棄<input class="o num" readonly inputmode="none"></label></div>`;
+    tr.innerHTML = nm + r.b.map((_, i) => `<td class="b" data-i="${i}">${cell}<div class="i"></div></td>`).join('') + '<td class="add"></td>';
     const n = tr.querySelector('.n'); n.value = r.name; n.oninput = () => { r.name = n.value; save(); };
-    const h = tr.querySelector('.h'); h.value = r.shelf || t.shelf; h.dataset.t = '期限（分）';
-    h.onchange = () => { r.shelf = Math.max(1, parseInt(h.value, 10) || t.shelf); h.value = r.shelf; save(); tick(); };
+    const h = tr.querySelector('.h');
+    if (h) { h.value = fmtH(r.shelf || t.shelf); h.dataset.t = '期限（時間）';
+      h.onchange = () => { r.shelf = Math.max(1, Math.round(parseFloat(h.value) * 60) || t.shelf); h.value = fmtH(r.shelf); save(); tick(); }; }
     const del = tr.querySelector('.del');
     del.onclick = () => {
       if (!del.dataset.arm) { del.dataset.arm = 1; del.textContent = 'もう一度押すと削除'; setTimeout(() => { delete del.dataset.arm; del.textContent = '商品削除'; }, 3000); return; }
       t.rows = t.rows.filter(x => x.id !== r.id); save(); render();
     };
     tr.querySelectorAll('td.b').forEach(td => {
-      const i = +td.dataset.i, b = r.b[i], q = td.querySelector('.q'), o = td.querySelector('.o');
-      q.value = b.qty; o.value = b.out || '';
-      q.dataset.t = `${r.name || '商品'} ${i + 1}回目：${tab.verb}数量`; o.dataset.t = `${r.name || '商品'} ${i + 1}回目：廃棄数量`;
-      q.onchange = () => {
-        const v = parseInt(q.value, 10);
-        if (v > 0) { newDay(); b.qty = v; b.fry = Date.now(); b.out = Math.min(b.out || 0, v); b.ack = false; }
-        else reset(b);
-        q.value = b.qty; o.value = b.out || ''; save(); tick();
-      };
+      const i = +td.dataset.i, b = r.b[i], q = td.querySelector('.q'), o = td.querySelector('.o'), who = r.name || '商品';
+      o.value = b.out || ''; o.dataset.t = `${who} ${i + 1}回目：廃棄数量`;
+      if (q) {
+        q.value = b.qty; q.dataset.t = `${who} ${i + 1}回目：${tab.verb}数量`;
+        q.onchange = () => {
+          const v = parseInt(q.value, 10);
+          if (v > 0) { newDay(); b.qty = v; b.fry = Date.now(); b.out = Math.min(b.out || 0, v); b.ack = false; }  // 数量入力 → 時刻を記録
+          else reset(b);                                                                                         // 空にすると集計から消える
+          q.value = b.qty; o.value = b.out || ''; save(); tick();
+        };
+      }
       o.onchange = () => {
-        if (!b.fry) { o.value = ''; return; }
-        newDay();
-        b.out = Math.min(Math.max(0, parseInt(o.value, 10) || 0), b.qty); b.ack = true;   // 廃棄数を入力（0も可）→ 確認済み
-        if (b.out >= b.qty) { archive(r, b); reset(b); }
-        q.value = b.qty; o.value = b.out || ''; save(); tick();
+        const v = Math.max(0, parseInt(o.value, 10) || 0);
+        if (tab.noMake) { if (v > 0) { newDay(); b.qty = v; b.out = v; b.fry = Date.now(); b.ack = true; } else reset(b); }
+        else { if (!b.fry) { o.value = ''; return; } newDay(); b.out = Math.min(v, b.qty); b.ack = true; }   // 0 も「確認済み」
+        o.value = b.out || ''; if (q) q.value = b.qty; save(); tick();
       };
     });
     body.appendChild(tr);
@@ -240,35 +276,38 @@ function render() {
 }
 
 function tick() {
-  const now = Date.now(), tab = cur(), t = T(); const reds = [];
+  const now = Date.now(), tab = cur(), t = T(), reds = [];
   document.querySelectorAll('#body tr').forEach(tr => {
     const r = t.rows.find(x => x.id === tr.dataset.id); if (!r) return;
-    const sh = (r.shelf || t.shelf) * 60000, cb = r.b.filter(b => b.fry), hs = r.hist;
-    const tq = hs.reduce((a, x) => a + x.qty, 0) + cb.reduce((a, x) => a + (+x.qty || 0), 0);
-    const to = (r.disc || 0) + hs.reduce((a, x) => a + x.out, 0) + cb.reduce((a, x) => a + (x.out || 0), 0);
-    tr.querySelector('.dsc').innerHTML = `${tab.verb}計 <b>${tq}</b><br>廃棄計 <b>${to}</b>`;
+    const sh = (r.shelf || t.shelf) * 60000, cb = r.b.filter(b => b.fry);
+    const tq = cb.reduce((a, x) => a + (+x.qty || 0), 0), to = cb.reduce((a, x) => a + (x.out || 0), 0);   // 集計は今ある入力だけ（取消すと引かれる）
+    tr.querySelector('.dsc').innerHTML = (tab.noMake ? '' : `${tab.verb}計 <b>${tq}</b><br>`) + `廃棄計 <b>${to}</b>`;
     tr.querySelectorAll('td.b').forEach(td => {
       const b = r.b[+td.dataset.i], info = td.querySelector('.i'); td.className = 'b';
       if (!b.fry) { info.innerHTML = ''; return; }
-      const exp = b.fry + sh, left = exp - now, mins = Math.ceil(left / 60000); let rem;
-      if (left > 0) { td.classList.add('ok'); rem = ''; }
-      else if (!b.ack && -left >= t.red * 60000) { td.classList.add('red'); rem = '<b>要廃棄入力！</b>'; reds.push(td); }
-      else { td.classList.add('yel'); rem = '<b>期限切れ</b>'; }
-      info.innerHTML = `${tab.verb} <b>${hm(b.fry)}</b><br>期限 <b>${hm(exp)}</b>${rem ? '<br>' + rem : ''}<br>残 <b>${b.qty - (b.out || 0)}</b> 個<button class="clr">この回を削除</button>`;
-      info.querySelector('.clr').onclick = () => { archive(r, b); reset(b); td.querySelector('.q').value = ''; td.querySelector('.o').value = ''; save(); tick(); };
+      let html;
+      if (tab.noMake) { td.classList.add('pl'); html = `入力 <b>${hm(b.fry)}</b>`; }
+      else {
+        const exp = b.fry + sh, left = exp - now, head = `${tab.verb} <b>${hm(b.fry)}</b><br>期限 <b>${hm(exp)}</b>`;
+        if (b.out >= b.qty) { td.classList.add('pl'); html = `${tab.verb} <b>${hm(b.fry)}</b><br><b>全数廃棄</b>`; }
+        else if (left > 0) { td.classList.add('ok'); html = head + `<br>残 <b>${b.qty - (b.out || 0)}</b> 個`; }
+        else if (!b.ack && -left >= t.red * 60000) { td.classList.add('red'); reds.push(td); html = head + `<br><b>要廃棄入力！</b><br>残 <b>${b.qty - (b.out || 0)}</b> 個`; }
+        else { td.classList.add('yel'); html = head + `<br><b>期限切れ</b><br>残 <b>${b.qty - (b.out || 0)}</b> 個`; }
+      }
+      info.innerHTML = html + '<button class="clr">取消</button>';
+      info.querySelector('.clr').onclick = () => { reset(b); const q = td.querySelector('.q'); if (q) q.value = ''; td.querySelector('.o').value = ''; save(); tick(); };   // 取消は集計に入らない
     });
   });
   TABS.forEach(tb => {
+    if (tb.noMake) return;
     const d = S.t[tb.k]; let y = 0, rd = 0;
-    d.rows.forEach(r => r.b.forEach(b => { if (!b.fry) return; const l = b.fry + (r.shelf || d.shelf) * 60000 - now; if (l <= 0) { y++; if (!b.ack && -l >= d.red * 60000) rd++; } }));
+    d.rows.forEach(r => r.b.forEach(b => { if (!b.fry || b.out >= b.qty) return; const l = b.fry + (r.shelf || d.shelf) * 60000 - now; if (l <= 0) { y++; if (!b.ack && -l >= d.red * 60000) rd++; } }));
     const el = document.querySelector(`.tab[data-k="${tb.k}"] .badge`);
     if (el) { el.textContent = y; el.style.display = y ? '' : 'none'; el.className = 'badge' + (rd ? ' r' : ''); }
   });
-  if (!reds.length) lastBeep = 0;
-  else if (now - lastBeep >= 60000) {     // 赤：警告音 + 廃棄入力欄を自動表示
-    lastBeep = now; beep();
-    if (!P) openPad(reds[0].querySelector('.o'));
-  }
+  redN = reds.length;
+  if (!redN) lastBeep = 0;
+  else if (now - lastBeep >= 60000) { lastBeep = now; alarmBeat(); if (!P) openPad(reds[0].querySelector('.o')); }   // 廃棄入力欄を自動表示（1分おきに再表示）
 }
 
 function addItem() {
@@ -280,38 +319,59 @@ function addItem() {
 }
 $('add').onclick = addItem;
 $('newName').onkeydown = e => { if (e.key === 'Enter') addItem(); };
-$('shelf').onchange = () => { const t = T(), el = $('shelf'); t.shelf = Math.max(1, parseInt(el.value, 10) || 120); el.value = t.shelf; save(); };
-$('red').onchange = () => { const t = T(), el = $('red'); t.red = Math.max(1, parseInt(el.value, 10) || 60); el.value = t.red; save(); tick(); };
+$('shelf').onchange = () => { const t = T(), el = $('shelf'); t.shelf = Math.max(1, Math.round(parseFloat(el.value) * 60) || 120); el.value = fmtH(t.shelf); save(); };
+$('red').onchange = () => { const t = T(), el = $('red'); t.red = Math.max(1, Math.round(parseFloat(el.value) * 60) || 60); el.value = fmtH(t.red); save(); tick(); };
 
 /* ---------- 終了 → PDF ---------- */
 const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
-const TC = { fry: '#e8590c', grill: '#c92a2a', bao: '#1c7ed6' };
-function buildPages(d) {
-  const pg = [], sum = []; let GQ = 0, GO = 0;
+const TC = { fry: '#e8590c', grill: '#c92a2a', bao: '#1c7ed6', oden: '#862e9c' };
+function buildPages(d, made) {
+  const rate = (o, q) => q ? (o / q * 100).toFixed(1) + '%' : '-', R = 'style="text-align:right"';
+  let GQ = 0, GO = 0, GOm = 0; const tabs = [], pg = [];
   TABS.forEach(tab => {
-    const t = S.t[tab.k], lines = []; let tq = 0, to = 0;
-    t.rows.forEach(r => {
-      const all = [...r.hist, ...r.b.filter(b => b.fry).map(b => ({ fry: b.fry, qty: +b.qty || 0, out: b.out || 0 }))].sort((a, b) => a.fry - b.fry);
-      const q = all.reduce((a, x) => a + x.qty, 0), o = all.reduce((a, x) => a + x.out, 0) + (r.disc || 0);
-      if (!all.length && !o) return; tq += q; to += o; const nm = esc(r.name || '(名称未設定)');
-      all.forEach((x, i) => lines.push(`<tr><td class="n">${i ? '' : nm}</td><td>${hm(x.fry)}</td><td class="r">${x.qty}</td><td class="r">${x.out}</td></tr>`));
-      lines.push(`<tr class="st"><td colspan="2">${nm}　合計</td><td class="r">${q}</td><td class="r">${o}</td></tr>`);
+    const items = [], none = []; let tq = 0, to = 0;
+    S.t[tab.k].rows.forEach(r => {
+      const all = r.b.filter(b => b.fry).map(b => ({ fry: b.fry, qty: +b.qty || 0, out: b.out || 0 })).sort((a, b) => a.fry - b.fry);
+      if (!all.length) { none.push(esc(r.name || '(名称未設定)')); return; }
+      const q = tab.noMake ? 0 : all.reduce((a, x) => a + x.qty, 0), o = all.reduce((a, x) => a + x.out, 0);
+      items.push({ nm: esc(r.name || '(名称未設定)'), all, q, o }); tq += q; to += o;
     });
-    GQ += tq; GO += to; sum.push({ tab, tq, to });
-    const per = 20, chunks = Math.max(1, Math.ceil(lines.length / per));
-    for (let c = 0; c < chunks; c++) {
-      const rows = lines.slice(c * per, (c + 1) * per).join('') || '<tr><td colspan="4">記録なし</td></tr>';
-      const tot = c === chunks - 1 ? `<tr class="tt"><td colspan="2">${tab.name}　総合計</td><td class="r">${tq}</td><td class="r">${to}</td></tr>` : '';
-      pg.push({ sub: `${tab.icon} ${tab.name}${chunks > 1 ? `（${c + 1}/${chunks}）` : ''}`, color: TC[tab.k],
-        body: `<table><tr><th style="width:36%">商品</th><th>${tab.verb}時刻</th><th class="r" style="text-align:right">数量</th><th style="text-align:right">廃棄</th></tr>${rows}${tot}</table>` });
-    }
+    GQ += tq; GO += to; if (!tab.noMake) GOm += to;
+    tabs.push({ tab, items, none, tq, to });
   });
-  const rate = (o, q) => q ? (o / q * 100).toFixed(1) + '%' : '-';
-  pg.unshift({ sub: '本日のまとめ', color: '#343a40', body:
-    `<table><tr><th>区分</th><th style="text-align:right">数量合計</th><th style="text-align:right">廃棄合計</th><th style="text-align:right">廃棄率</th></tr>` +
-    sum.map(x => `<tr><td class="n">${x.tab.icon} ${x.tab.name}</td><td class="r">${x.tq}</td><td class="r">${x.to}</td><td class="r">${rate(x.to, x.tq)}</td></tr>`).join('') +
-    `<tr class="tt"><td>総合計</td><td class="r">${GQ}</td><td class="r">${GO}</td><td class="r">${rate(GO, GQ)}</td></tr></table>` });
-  return pg.map((p, i) => `<div style="height:1043px;position:relative"><div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:4px solid ${p.color};padding-bottom:10px;margin-bottom:16px"><div style="font-size:26px;font-weight:700">ホットスナック日報</div><div style="font-size:18px">${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日</div></div><div style="font-size:21px;font-weight:700;color:${p.color};margin-bottom:12px">${p.sub}</div>${p.body}<div style="position:absolute;bottom:0;right:0;font-size:12px;color:#868e96">${i + 1} / ${pg.length}</div></div>`);
+  const chunk = (a, n) => { const c = []; for (let i = 0; i < a.length; i += n) c.push(a.slice(i, i + n)); return c.length ? c : [[]]; };
+  // 1) まとめ
+  pg.push({ sub: '本日のまとめ', color: '#343a40', body: `<table><tr><th>区分</th><th ${R}>数量合計</th><th class="dh">廃棄合計</th><th ${R}>廃棄率</th></tr>` +
+    tabs.map(x => `<tr><td class="n">${x.tab.icon} ${x.tab.name}</td><td class="r">${x.tab.noMake ? '-' : x.tq}</td><td class="r dc">${x.to}</td><td class="r">${x.tab.noMake ? '-' : rate(x.to, x.tq)}</td></tr>`).join('') +
+    `<tr class="tt"><td>総合計</td><td class="r">${GQ}</td><td class="r dc">${GO}</td><td class="r">${rate(GOm, GQ)}</td></tr></table><p style="color:#868e96;font-size:13px">※廃棄率 ＝ 廃棄数 ÷ 数量（おでんを除く）</p>` });
+  // 2) 廃棄数一覧（商品別）
+  const L = [];
+  tabs.forEach(x => { if (!x.items.length) return;
+    x.items.forEach(it => L.push(`<tr><td>${x.tab.icon} ${x.tab.name}</td><td class="n">${it.nm}</td><td class="r">${x.tab.noMake ? '-' : it.q}</td><td class="r dc">${it.o}</td></tr>`));
+    L.push(`<tr class="st"><td colspan="2">${x.tab.name}　廃棄合計</td><td class="r">${x.tab.noMake ? '-' : x.tq}</td><td class="r dc">${x.to}</td></tr>`); });
+  const lc = chunk(L, 16);
+  lc.forEach((c, i) => pg.push({ sub: `廃棄数一覧（商品別）${lc.length > 1 ? `（${i + 1}/${lc.length}）` : ''}`, color: '#c92a2a',
+    body: `<table><tr><th style="width:22%">区分</th><th>商品</th><th ${R}>数量</th><th class="dh">廃棄数</th></tr>${c.join('') || '<tr><td colspan="4">記録なし</td></tr>'}</table>` }));
+  // 3) 明細：商品ごとのカード（各回の時刻・数量・廃棄、1日の合計）
+  tabs.forEach(x => {
+    const tab = x.tab, nm = tab.noMake, blocks = [];
+    x.items.forEach(it => {
+      for (let st = 0; st < it.all.length; st += 16) {
+        const part = it.all.slice(st, st + 16), last = st + 16 >= it.all.length;
+        const rows = part.map((e, i) => `<tr><td>${st + i + 1}回目</td><td>${hm(e.fry)}</td>${nm ? '' : `<td class="r">${e.qty}</td>`}<td class="dc2">${e.out}</td></tr>`).join('');
+        const sum = nm ? `廃棄合計 <b>${it.o}個</b>` : `${tab.verb} ${it.all.length}回　${it.q}個　／　廃棄合計 <b>${it.o}個</b>`;
+        const tot = last ? `<tr class="st"><td colspan="2">${it.nm}　本日の合計</td>${nm ? '' : `<td class="r">${it.q}</td>`}<td class="r dc">${it.o}</td></tr>` : '';
+        blocks.push({ h: 146 + 37 * part.length, html: `<div class="card"><div class="ch"><span class="cn">${it.nm}${st ? '（続き）' : ''}</span><span class="cs">${last ? sum : ''}</span></div><table><tr><th style="width:24%">回</th><th>${nm ? '入力' : tab.verb}時刻</th>${nm ? '' : `<th ${R}>数量</th>`}<th class="dh">廃棄</th></tr>${rows}${tot}</table></div>` });
+      }
+    });
+    if (x.none.length) blocks.push({ h: 70, html: `<div class="card"><div class="ch"><span class="cn" style="font-size:16px;color:#868e96">記録なし：${x.none.join('、')}</span></div></div>` });
+    blocks.push({ h: 52, html: `<table><tr class="tt"><td>${tab.icon} ${tab.name}　総合計</td>${nm ? '' : `<td class="r">${tab.verb}合計 ${x.tq}個</td>`}<td class="r">廃棄合計 ${x.to}個</td></tr></table>` });
+    const pages = []; let cur = [], hh = 0;
+    blocks.forEach(b => { if (cur.length && hh + b.h > 880) { pages.push(cur); cur = []; hh = 0; } cur.push(b.html); hh += b.h; });
+    pages.push(cur);
+    pages.forEach((c, i) => pg.push({ sub: `${tab.icon} ${tab.name}　明細${pages.length > 1 ? `（${i + 1}/${pages.length}）` : ''}`, color: TC[tab.k], body: c.join('') }));
+  });
+  return pg.map((p, i) => `<div style="height:1043px;position:relative"><div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:4px solid ${p.color};padding-bottom:10px;margin-bottom:16px"><div style="font-size:30px;font-weight:700">FF管理帳</div><div style="text-align:right"><div style="font-size:18px">対象日　${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日</div><div style="font-size:11px;color:#868e96">作成 ${made.getMonth() + 1}/${made.getDate()} ${hm(made)}</div></div></div><div style="font-size:21px;font-weight:700;color:${p.color};margin-bottom:12px">${p.sub}</div>${p.body}<div style="position:absolute;bottom:0;right:0;font-size:12px;color:#868e96">${i + 1} / ${pg.length}</div></div>`);
 }
 
 /* 保存先フォルダ（FF管理）: 対応ブラウザ（PC版 Chrome / Edge）のみ。非対応は通常ダウンロード */
@@ -337,8 +397,8 @@ async function endDay() {
   toast('PDFを作成中…');
   try {
     if (!window.html2canvas || !window.jspdf) throw new Error('lib');
-    const d = new Date(), p = n => String(n).padStart(2, '0'), base = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-    const pages = buildPages(d), doc = new window.jspdf.jsPDF('p', 'mm', 'a4'), rep = $('rep');
+    const now = new Date(), d = new Date(now.getTime() - 864e5), p = n => String(n).padStart(2, '0'), base = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    const pages = buildPages(d, now), doc = new window.jspdf.jsPDF('p', 'mm', 'a4'), rep = $('rep'); doc.setProperties({ title: 'FF管理帳' });
     for (let i = 0; i < pages.length; i++) {
       rep.innerHTML = pages[i]; const cv = await html2canvas(rep, { scale: 2, backgroundColor: '#fff' });
       if (i) doc.addPage(); doc.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
@@ -364,7 +424,15 @@ $('undo').onclick = () => {
   S = JSON.parse(undoData); normalize(); undoData = null; try { localStorage.removeItem(UKEY); } catch (e) {}
   save(); buildTabs(); render(); upUndo(); toast('終了前の状態に戻しました');
 };
-upUndo(); buildTabs(); render(); setInterval(tick, 15000);
+upUndo(); buildTabs(); render();
+setInterval(tick, 5000); setInterval(alarmBeat, 2500); setInterval(save, 10000);   // 10秒ごとにも自動保存
+addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else keepAwake(); });
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}   // ブラウザによる自動削除を防ぐ
+idbGetState().then(str => { try {   // IndexedDB のほうが新しければ復元
+  const d = JSON.parse(str);
+  if (d && d.t && d.savedAt > (S.savedAt || 0)) { S.active = d.active || 'fry'; TABS.forEach(t => { if (d.t[t.k]) S.t[t.k] = d.t[t.k]; }); S.savedAt = d.savedAt; normalize(); buildTabs(); render(); toast('バックアップから復元しました'); }
+} catch (e) {} });
 </script>
 </body>
 </html>
