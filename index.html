@@ -19,7 +19,7 @@ body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,"Se
 .badge.r{background:var(--rd);color:#fff}
 .ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-left:auto}
 .ctl label{font-size:.8rem;color:var(--mu);display:flex;align-items:center;gap:4px}
-input{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:5px 7px;box-sizing:border-box}
+input,textarea{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:5px 7px;box-sizing:border-box}
 input.num{cursor:pointer;caret-color:transparent}
 input.num.act{outline:3px solid var(--ac)}
 .ctl input.s{width:52px;text-align:center}
@@ -32,14 +32,14 @@ button:disabled{opacity:.4;cursor:default}
 table{border-collapse:separate;border-spacing:0;table-layout:fixed}
 th,td{padding:4px;border-bottom:1px solid var(--bd);border-right:1px solid var(--bd);vertical-align:top}
 th{position:sticky;top:0;z-index:4;background:var(--card);font-size:.72rem;color:var(--mu);text-align:center;padding:6px 4px}
-th.nm0,td.nm{position:sticky;left:0;width:112px;background:var(--card);z-index:3}
+th.nm0,td.nm{position:sticky;left:0;width:180px;background:var(--card);z-index:3}
 th.nm0{z-index:6}
 th.c,td.b{width:var(--cw)}
 th.add,td.add{position:sticky;right:0;width:44px;background:var(--card);z-index:3;border-right:0;padding:2px;text-align:center}
 th.add{z-index:6}
 #addCol{width:38px;height:38px;border-radius:19px;padding:0;font-size:1.1rem;background:var(--ac);border-color:var(--ac);color:#fff}
 td.nm{vertical-align:middle}
-td.nm input.n{width:100%;font-weight:600;padding:4px 5px}
+td.nm .n{display:block;width:100%;font-size:1.2rem;font-weight:700;line-height:1.25;padding:8px 6px;resize:none;overflow:hidden}
 td.nm .sh{display:flex;align-items:center;gap:3px;margin-top:6px;font-size:.72rem;color:var(--mu)}
 td.nm .sh input{width:42px;text-align:center;padding:3px}
 td.nm .dsc{margin-top:6px;font-size:.75rem;color:var(--mu);line-height:1.4}
@@ -67,24 +67,11 @@ td.yel .i,td.red .i{color:inherit}
 .pk .ok{grid-row:span 2;height:auto;background:var(--ac);border-color:var(--ac);color:#fff;font-size:1.1rem}
 .pk .z{grid-column:span 2}
 .toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:8px;z-index:60;display:none;max-width:90vw}
-#rep{position:fixed;left:-10000px;top:0;width:794px;height:1123px;background:#fff;color:#212529;padding:40px;box-sizing:border-box;overflow:hidden;font-family:"Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif}
-#rep table{border-collapse:collapse;width:100%;font-size:16px}
-#rep th{background:#343a40;color:#fff;padding:9px 10px;text-align:left;font-size:15px}
-#rep th.dh{background:#c92a2a;text-align:right}
-#rep td{padding:8px 10px;border-bottom:1px solid #dee2e6;background:#fff}
-#rep tr:nth-child(even) td{background:#f8f9fa}
+#rep{position:fixed;left:-10000px;top:0;width:794px;height:1123px;background:#fff;color:#000;padding:40px;box-sizing:border-box;overflow:hidden;font-family:"Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif}
+#rep table{border-collapse:collapse;width:100%;margin-bottom:14px}
+#rep td,#rep th{border:1px solid #888;padding:5px 7px;font-size:13px;text-align:left;vertical-align:top;background:#fff}
+#rep th{background:#eee;color:#000}
 #rep .r{text-align:right}
-#rep td.n{font-weight:700}
-#rep .dc{color:#c92a2a;font-weight:700;font-size:24px}
-#rep tr td.dc2{color:#c92a2a;font-weight:700;font-size:19px;text-align:right;background:#fff5f5}
-#rep tr.st td{background:#fff3bf;font-weight:700}
-#rep tr.tt td{background:#343a40;color:#fff;font-weight:700;font-size:17px}
-#rep .tt .dc{color:#fff}
-#rep .card{border:2px solid #ced4da;border-radius:8px;margin-bottom:14px;overflow:hidden}
-#rep .ch{display:flex;justify-content:space-between;align-items:center;background:#f1f3f5;padding:8px 12px;border-bottom:2px solid #ced4da}
-#rep .cn{font-size:22px;font-weight:700}
-#rep .cs{font-size:15px}
-#rep .cs b{color:#c92a2a;font-size:20px}
 </style>
 </head>
 <body>
@@ -149,11 +136,12 @@ function save() {   // localStorage + バックアップ + IndexedDB の3重保�
 }
 const hm = ms => new Date(ms).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', hour12: false });
 const $ = id => document.getElementById(id);
+const fit = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; };   // 商品名が全部見えるよう自動で高さを調整
 const fmtH = m => String(+(m / 60).toFixed(2));
 const cur = () => TABS.find(t => t.k === S.active), T = () => S.t[S.active];
-const reset = b => { b.qty = ''; b.out = 0; b.fry = null; b.ack = false; };
+const reset = b => { b.qty = ''; b.out = 0; b.fry = null; b.ack = false; b.outAt = null; };
 const archive = (r, b) => { if (b.fry) r.hist.push({ fry: b.fry, qty: +b.qty || 0, out: b.out || 0 }); };
-const NAMEW = 112, ADDW = 44;
+const NAMEW = 180, ADDW = 44;
 function toast(m) { const e = $('toast'); e.textContent = m; e.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => e.style.display = 'none', 3500); }
 
 /* ---------- 音 ---------- */
@@ -237,12 +225,13 @@ function render() {
   const body = $('body'); body.innerHTML = '';
   t.rows.forEach(r => {
     const tr = document.createElement('tr'); tr.dataset.id = r.id;
-    const nm = '<td class="nm"><input class="n">' + (tab.noMake ? '' : '<label class="sh">期限 <input class="h num" data-dec="1" readonly inputmode="none"> 時間</label>') + '<div class="dsc"></div><button class="del">商品削除</button></td>';
+    const nm = '<td class="nm"><textarea class="n" rows="1"></textarea>' + (tab.noMake ? '' : '<label class="sh">期限 <input class="h num" data-dec="1" readonly inputmode="none"> 時間</label>') + '<div class="dsc"></div><button class="del">商品削除</button></td>';
     const cell = tab.noMake
       ? '<div class="io"><label>廃棄<input class="o num" readonly inputmode="none"></label></div>'
       : `<div class="io"><label>${tab.verb}<input class="q num" readonly inputmode="none"></label><label>廃棄<input class="o num" readonly inputmode="none"></label></div>`;
     tr.innerHTML = nm + r.b.map((_, i) => `<td class="b" data-i="${i}">${cell}<div class="i"></div></td>`).join('') + '<td class="add"></td>';
-    const n = tr.querySelector('.n'); n.value = r.name; n.oninput = () => { r.name = n.value; save(); };
+    const n = tr.querySelector('.n'); n.value = r.name; n.oninput = () => { r.name = n.value; fit(n); save(); };
+    n.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); n.blur(); } };
     const h = tr.querySelector('.h');
     if (h) { h.value = fmtH(r.shelf || t.shelf); h.dataset.t = '期限（時間）';
       h.onchange = () => { r.shelf = Math.max(1, Math.round(parseFloat(h.value) * 60) || t.shelf); h.value = fmtH(r.shelf); save(); tick(); }; }
@@ -266,11 +255,11 @@ function render() {
       o.onchange = () => {
         const v = Math.max(0, parseInt(o.value, 10) || 0);
         if (tab.noMake) { if (v > 0) { newDay(); b.qty = v; b.out = v; b.fry = Date.now(); b.ack = true; } else reset(b); }
-        else { if (!b.fry) { o.value = ''; return; } newDay(); b.out = Math.min(v, b.qty); b.ack = true; }   // 0 も「確認済み」
+        else { if (!b.fry) { o.value = ''; return; } newDay(); b.out = Math.min(v, b.qty); b.ack = true; b.outAt = Date.now(); }   // 0 も「確認済み」
         o.value = b.out || ''; if (q) q.value = b.qty; save(); tick();
       };
     });
-    body.appendChild(tr);
+    body.appendChild(tr); fit(n);
   });
   layout(); tick();
 }
@@ -324,54 +313,41 @@ $('red').onchange = () => { const t = T(), el = $('red'); t.red = Math.max(1, Ma
 
 /* ---------- 終了 → PDF ---------- */
 const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
-const TC = { fry: '#e8590c', grill: '#c92a2a', bao: '#1c7ed6', oden: '#862e9c' };
 function buildPages(d, made) {
-  const rate = (o, q) => q ? (o / q * 100).toFixed(1) + '%' : '-', R = 'style="text-align:right"';
-  let GQ = 0, GO = 0, GOm = 0; const tabs = [], pg = [];
+  const title = `<h1 style="font-size:22px;margin:0 0 12px">FF管理帳　${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日</h1>`;
+  let GQ = 0, GO = 0; const secs = [];
   TABS.forEach(tab => {
-    const items = [], none = []; let tq = 0, to = 0;
+    const rows = []; let tq = 0, to = 0;
     S.t[tab.k].rows.forEach(r => {
       const all = r.b.filter(b => b.fry).map(b => ({ fry: b.fry, qty: +b.qty || 0, out: b.out || 0 })).sort((a, b) => a.fry - b.fry);
-      if (!all.length) { none.push(esc(r.name || '(名称未設定)')); return; }
+      if (!all.length) return;
       const q = tab.noMake ? 0 : all.reduce((a, x) => a + x.qty, 0), o = all.reduce((a, x) => a + x.out, 0);
-      items.push({ nm: esc(r.name || '(名称未設定)'), all, q, o }); tq += q; to += o;
+      tq += q; to += o;
+      const det = all.map(x => tab.noMake ? `${hm(x.fry)}　廃棄 ${x.out}個` : `${hm(x.fry)}　${x.qty}個（廃棄 ${x.out}）`).join('<br>');
+      rows.push({ h: all.length * 17 + 12, html: `<tr><td>${esc(r.name || '(名称未設定)')}</td><td>${det}</td>${tab.noMake ? '' : `<td class="r">${q}</td>`}<td class="r">${o}</td></tr>` });
     });
-    GQ += tq; GO += to; if (!tab.noMake) GOm += to;
-    tabs.push({ tab, items, none, tq, to });
+    GQ += tq; GO += to; secs.push({ tab, rows, tq, to });
   });
-  const chunk = (a, n) => { const c = []; for (let i = 0; i < a.length; i += n) c.push(a.slice(i, i + n)); return c.length ? c : [[]]; };
-  // 1) まとめ
-  pg.push({ sub: '本日のまとめ', color: '#343a40', body: `<table><tr><th>区分</th><th ${R}>数量合計</th><th class="dh">廃棄合計</th><th ${R}>廃棄率</th></tr>` +
-    tabs.map(x => `<tr><td class="n">${x.tab.icon} ${x.tab.name}</td><td class="r">${x.tab.noMake ? '-' : x.tq}</td><td class="r dc">${x.to}</td><td class="r">${x.tab.noMake ? '-' : rate(x.to, x.tq)}</td></tr>`).join('') +
-    `<tr class="tt"><td>総合計</td><td class="r">${GQ}</td><td class="r dc">${GO}</td><td class="r">${rate(GOm, GQ)}</td></tr></table><p style="color:#868e96;font-size:13px">※廃棄率 ＝ 廃棄数 ÷ 数量（おでんを除く）</p>` });
-  // 2) 廃棄数一覧（商品別）
-  const L = [];
-  tabs.forEach(x => { if (!x.items.length) return;
-    x.items.forEach(it => L.push(`<tr><td>${x.tab.icon} ${x.tab.name}</td><td class="n">${it.nm}</td><td class="r">${x.tab.noMake ? '-' : it.q}</td><td class="r dc">${it.o}</td></tr>`));
-    L.push(`<tr class="st"><td colspan="2">${x.tab.name}　廃棄合計</td><td class="r">${x.tab.noMake ? '-' : x.tq}</td><td class="r dc">${x.to}</td></tr>`); });
-  const lc = chunk(L, 16);
-  lc.forEach((c, i) => pg.push({ sub: `廃棄数一覧（商品別）${lc.length > 1 ? `（${i + 1}/${lc.length}）` : ''}`, color: '#c92a2a',
-    body: `<table><tr><th style="width:22%">区分</th><th>商品</th><th ${R}>数量</th><th class="dh">廃棄数</th></tr>${c.join('') || '<tr><td colspan="4">記録なし</td></tr>'}</table>` }));
-  // 3) 明細：商品ごとのカード（各回の時刻・数量・廃棄、1日の合計）
-  tabs.forEach(x => {
-    const tab = x.tab, nm = tab.noMake, blocks = [];
-    x.items.forEach(it => {
-      for (let st = 0; st < it.all.length; st += 16) {
-        const part = it.all.slice(st, st + 16), last = st + 16 >= it.all.length;
-        const rows = part.map((e, i) => `<tr><td>${st + i + 1}回目</td><td>${hm(e.fry)}</td>${nm ? '' : `<td class="r">${e.qty}</td>`}<td class="dc2">${e.out}</td></tr>`).join('');
-        const sum = nm ? `廃棄合計 <b>${it.o}個</b>` : `${tab.verb} ${it.all.length}回　${it.q}個　／　廃棄合計 <b>${it.o}個</b>`;
-        const tot = last ? `<tr class="st"><td colspan="2">${it.nm}　本日の合計</td>${nm ? '' : `<td class="r">${it.q}</td>`}<td class="r dc">${it.o}</td></tr>` : '';
-        blocks.push({ h: 146 + 37 * part.length, html: `<div class="card"><div class="ch"><span class="cn">${it.nm}${st ? '（続き）' : ''}</span><span class="cs">${last ? sum : ''}</span></div><table><tr><th style="width:24%">回</th><th>${nm ? '入力' : tab.verb}時刻</th>${nm ? '' : `<th ${R}>数量</th>`}<th class="dh">廃棄</th></tr>${rows}${tot}</table></div>` });
-      }
-    });
-    if (x.none.length) blocks.push({ h: 70, html: `<div class="card"><div class="ch"><span class="cn" style="font-size:16px;color:#868e96">記録なし：${x.none.join('、')}</span></div></div>` });
-    blocks.push({ h: 52, html: `<table><tr class="tt"><td>${tab.icon} ${tab.name}　総合計</td>${nm ? '' : `<td class="r">${tab.verb}合計 ${x.tq}個</td>`}<td class="r">廃棄合計 ${x.to}個</td></tr></table>` });
-    const pages = []; let cur = [], hh = 0;
-    blocks.forEach(b => { if (cur.length && hh + b.h > 880) { pages.push(cur); cur = []; hh = 0; } cur.push(b.html); hh += b.h; });
-    pages.push(cur);
-    pages.forEach((c, i) => pg.push({ sub: `${tab.icon} ${tab.name}　明細${pages.length > 1 ? `（${i + 1}/${pages.length}）` : ''}`, color: TC[tab.k], body: c.join('') }));
+  const BUDGET = 940, pages = []; let parts = [title], H = 50;
+  const newPage = () => { pages.push(parts.join('')); parts = []; H = 0; };
+  secs.forEach(s => {
+    const tab = s.tab, nm = tab.noMake, rows = s.rows.slice(); let cont = false;
+    const head = `<tr><th style="width:24%">商品</th><th>${nm ? '入力時刻・廃棄数' : tab.verb + '時刻・数量（廃棄）'}</th>${nm ? '' : `<th style="width:12%">${tab.verb}合計</th>`}<th style="width:12%">廃棄合計</th></tr>`;
+    const h2 = c => `<h2 style="font-size:16px;margin:10px 0 6px">${tab.icon} ${tab.name}${c ? '（続き）' : ''}　（${nm ? '' : `${tab.verb}合計 ${s.tq} 個 ／ `}廃棄合計 ${s.to} 個）</h2>`;
+    do {
+      if (H + 90 + (rows[0] ? rows[0].h : 30) > BUDGET) newPage();
+      const take = []; let hh = H + 90;
+      while (rows.length && hh + rows[0].h <= BUDGET) { const r = rows.shift(); take.push(r.html); hh += r.h; }
+      if (!take.length && rows.length) take.push(rows.shift().html);
+      parts.push(h2(cont) + `<table>${head}${take.join('') || `<tr><td colspan="${nm ? 3 : 4}">記録なし</td></tr>`}</table>`);
+      H = hh + 14; cont = true;
+      if (rows.length) newPage();
+    } while (rows.length);
   });
-  return pg.map((p, i) => `<div style="height:1043px;position:relative"><div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:4px solid ${p.color};padding-bottom:10px;margin-bottom:16px"><div style="font-size:30px;font-weight:700">FF管理帳</div><div style="text-align:right"><div style="font-size:18px">対象日　${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日</div><div style="font-size:11px;color:#868e96">作成 ${made.getMonth() + 1}/${made.getDate()} ${hm(made)}</div></div></div><div style="font-size:21px;font-weight:700;color:${p.color};margin-bottom:12px">${p.sub}</div>${p.body}<div style="position:absolute;bottom:0;right:0;font-size:12px;color:#868e96">${i + 1} / ${pg.length}</div></div>`);
+  if (H + 50 > BUDGET) newPage();
+  parts.push(`<h2 style="font-size:17px;margin-top:14px">本日の総合計：数量 ${GQ} 個 ／ 廃棄 ${GO} 個</h2>`);
+  pages.push(parts.join(''));
+  return pages.map((p, i) => `<div style="height:1043px;position:relative">${p}<div style="position:absolute;bottom:0;right:0;font-size:12px;color:#666">${i + 1} / ${pages.length}</div></div>`);
 }
 
 /* 保存先フォルダ（FF管理）: 対応ブラウザ（PC版 Chrome / Edge）のみ。非対応は通常ダウンロード */
